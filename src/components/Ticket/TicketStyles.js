@@ -23,6 +23,7 @@ export const TicketWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  word-break: break-all;
 
   &:hover button {
     opacity: 1;

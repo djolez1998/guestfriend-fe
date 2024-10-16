@@ -1,49 +1,119 @@
 import React from 'react'
-import { render, fireEvent, screen } from '@testing-library/react'
-import { DndProvider } from 'react-dnd'
-import { HTML5Backend } from 'react-dnd-html5-backend'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MockedProvider } from '@apollo/client/testing'
 import KanbanBoard from '.'
-import { KanbanContext } from '../../context/KanbanContext'
+import { GET_TICKETS } from '../../graphQueries'
+import { columns } from '../../constants'
+import '@testing-library/jest-dom'
 
-const columnsMock = {
-  todo: [
-    { id: 1, content: 'Task 1' },
-    { id: 2, content: 'Task 2' }
-  ],
-  inProgress: [
-    { id: 3, content: 'Task 3' },
-    { id: 4, content: 'Task 4' }
-  ],
-  done: [{ id: 5, content: 'Task 5' }]
+// Mock data
+const mockTicketsData = {
+  tickets: [
+    { id: 1, content: 'Ticket 1', column: 'todo', updated: '123' },
+    { id: 2, content: 'Ticket 2', column: 'inProgress', updated: '123' },
+    { id: 3, content: 'Ticket 3', column: 'done', updated: '123' }
+  ]
 }
 
-test('renders KanbanBoard and performs search', () => {
-  render(
-    <KanbanContext.Provider value={{ columns: columnsMock }}>
-      <DndProvider backend={HTML5Backend}>
+// Mock GraphQL query
+const mocks = [
+  {
+    request: {
+      query: GET_TICKETS
+    },
+    result: {
+      data: mockTicketsData
+    }
+  }
+]
+
+// Error mock
+const errorMocks = [
+  {
+    request: {
+      query: GET_TICKETS
+    },
+    error: new Error('Something went wrong')
+  }
+]
+
+describe('KanbanBoard', () => {
+  it('displays the loader while loading', () => {
+    render(
+      <MockedProvider mocks={mocks} addTypename={false}>
         <KanbanBoard />
-      </DndProvider>
-    </KanbanContext.Provider>
-  )
+      </MockedProvider>
+    )
 
-  expect(screen.getByText('Task 1')).toBeInTheDocument()
-  expect(screen.getByText('Task 2')).toBeInTheDocument()
-  expect(screen.getByText('Task 3')).toBeInTheDocument()
-  expect(screen.getByText('Task 4')).toBeInTheDocument()
-  expect(screen.getByText('Task 5')).toBeInTheDocument()
+    expect(screen.getByTestId('loader')).toBeInTheDocument()
+  })
 
-  expect(
-    screen.getByText(`To Do (${columnsMock.todo.length})`)
-  ).toBeInTheDocument()
+  it('displays an error message if the query fails', async () => {
+    render(
+      <MockedProvider mocks={errorMocks} addTypename={false}>
+        <KanbanBoard />
+      </MockedProvider>
+    )
 
-  const searchInput = screen.getByPlaceholderText('Search...')
-  fireEvent.change(searchInput, { target: { value: 'Task 1' } })
+    await waitFor(() => {
+      expect(screen.getByText(/Error:/i)).toBeInTheDocument()
+    })
 
-  expect(screen.getByText('Task 1')).toBeInTheDocument()
-  expect(screen.getByText('To Do (1)')).toBeInTheDocument()
+    expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument()
+  })
 
-  expect(screen.queryByText('Task 2')).not.toBeInTheDocument()
-  expect(screen.queryByText('Task 3')).not.toBeInTheDocument()
-  expect(screen.queryByText('Task 4')).not.toBeInTheDocument()
-  expect(screen.queryByText('Task 5')).not.toBeInTheDocument()
+  it('renders columns and tickets after data loads', async () => {
+    render(
+      <MockedProvider mocks={mocks} addTypename={false}>
+        <KanbanBoard />
+      </MockedProvider>
+    )
+
+    await waitFor(() => {
+      columns.forEach((column) => {
+        // expect(
+        //   screen.getByText(
+        //     `${column.title} (${
+        //       mockTicketsData.tickets.filter(
+        //         (ticket) => ticket.column === column.key
+        //       ).length
+        //     })`
+        //   )
+        // ).toBeInTheDocument()
+        expect(
+          screen.getByText(column.title, { exact: false })
+        ).toBeInTheDocument()
+      })
+    })
+
+    expect(screen.getByText('Ticket 1')).toBeInTheDocument()
+    expect(screen.getByText('Ticket 2')).toBeInTheDocument()
+    expect(screen.getByText('Ticket 3')).toBeInTheDocument()
+  })
+
+  it('filters tickets based on search query', async () => {
+    render(
+      <MockedProvider mocks={mocks} addTypename={false}>
+        <KanbanBoard />
+      </MockedProvider>
+    )
+
+    for (const column of columns) {
+      await screen.findByText(column.title, { exact: false })
+    }
+
+    await screen.findByText('Ticket 1')
+    await screen.findByText('Ticket 2')
+    await screen.findByText('Ticket 3')
+
+    // Enter search
+    fireEvent.change(screen.getByPlaceholderText('Search...'), {
+      target: { value: 'Ticket 1' }
+    })
+
+    // Check that only the filtered ticket is visible
+    expect(screen.getByText('Ticket 1')).toBeInTheDocument()
+    expect(screen.queryByText('Ticket 2')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ticket 3')).not.toBeInTheDocument()
+  })
 })

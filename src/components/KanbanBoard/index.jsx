@@ -1,24 +1,34 @@
-import React, { useState, useContext } from 'react';
-import Column from '../Column';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
-import {
-  BoardWrapper,
-  SearchInput,
-  ColumnsWrapper,
-} from './KanbanBoardStyles';
-import { KanbanContext } from '../../context/KanbanContext';
+import React, { useState } from 'react'
+
+// libs
+import { DndProvider } from 'react-dnd'
+import { HTML5Backend } from 'react-dnd-html5-backend'
+import { useQuery } from '@apollo/client'
+
+// components
+import Column from '../Column'
+import Loader from '../Loader'
+
+// styled components
+import { BoardWrapper, SearchInput, ColumnsWrapper } from './KanbanBoardStyles'
+
+// utils
+import { filterTickets } from '../../utils/filterTickets'
+
+// constants
+import { columns } from '../../constants'
+
+// queries
+import { GET_TICKETS } from '../../graphQueries'
 
 const KanbanBoard = () => {
-  const { columns } = useContext(KanbanContext);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { loading, error, data } = useQuery(GET_TICKETS)
 
-  const filteredColumns = Object.keys(columns).reduce((acc, column) => {
-    acc[column] = columns[column].filter((ticket) =>
-      ticket.content.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    return acc;
-  }, {});
+  const [searchQuery, setSearchQuery] = useState('')
+
+  if (loading) return <Loader />
+
+  if (error) return <p>Error: {error.message}</p>
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -30,17 +40,17 @@ const KanbanBoard = () => {
           onChange={(e) => setSearchQuery(e.target.value)}
         />
         <ColumnsWrapper>
-          {Object.keys(filteredColumns).map((column) => (
+          {columns.map((column) => (
             <Column
-              key={column}
+              key={column.key}
               column={column}
-              tickets={filteredColumns[column]}
+              tickets={filterTickets(data.tickets, column.key, searchQuery)}
             />
           ))}
         </ColumnsWrapper>
       </BoardWrapper>
     </DndProvider>
-  );
-};
+  )
+}
 
-export default KanbanBoard;
+export default KanbanBoard
