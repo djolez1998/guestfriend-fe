@@ -18,39 +18,51 @@ const Ticket = ({ ticket, column }) => {
   const [editTicketMutation] = useMutation(EDIT_TICKET)
 
   const deleteTicket = (id) => {
-    deleteTicketMutation({
-      variables: { id },
-      update(cache) {
-        // const { tickets } = cache.readQuery({ query: GET_TICKETS })
-        const cachedData = cache.readQuery({ query: GET_TICKETS })
+    try {
+      deleteTicketMutation({
+        variables: { id },
+        update(cache) {
+          const cachedData = cache.readQuery({ query: GET_TICKETS })
 
-        if (!cachedData || !cachedData.tickets) return
+          if (!cachedData || !cachedData.tickets) return
 
-        const { tickets } = cachedData
+          const { tickets } = cachedData
 
-        cache.writeQuery({
-          query: GET_TICKETS,
-          data: { tickets: tickets.filter((ticket) => ticket.id !== id) }
-        })
-      }
-    })
+          cache.writeQuery({
+            query: GET_TICKETS,
+            data: { tickets: tickets.filter((ticket) => ticket.id !== id) }
+          })
+        }
+      })
+    } catch (e) {
+      console.log('Error:', e)
+    }
   }
 
   const editTicket = (id, updatedContent) => {
-    editTicketMutation({
-      variables: { id, content: updatedContent, column: ticket.column },
-      update(cache, { data: { editTicket } }) {
-        const { tickets } = cache.readQuery({ query: GET_TICKETS })
-        cache.writeQuery({
-          query: GET_TICKETS,
-          data: {
-            tickets: tickets.map((ticket) =>
-              ticket.id === id ? editTicket : ticket
-            )
+    if (content.trim() !== ticket.content) {
+      try {
+        editTicketMutation({
+          variables: { id, content: updatedContent, column: ticket.column },
+          update: (cache, { data: { editTicket } }) => {
+            const tickets =
+              cache.readQuery({ query: GET_TICKETS })?.tickets || []
+
+            cache.writeQuery({
+              query: GET_TICKETS,
+              data: {
+                tickets: tickets.map((ticket) =>
+                  ticket.id === id ? editTicket : ticket
+                )
+              }
+            })
           }
         })
+      } catch (e) {
+        console.log('Error:', e)
       }
-    })
+    }
+    setIsEditing(false)
   }
 
   const [{ opacity }, drag] = useDrag(() => ({
@@ -80,6 +92,7 @@ const Ticket = ({ ticket, column }) => {
 
   return (
     <TicketWrapper
+      data-testid={`ticket-${ticket.id}`}
       ref={drag}
       $column={column}
       style={{ opacity: opacity }}
@@ -100,7 +113,12 @@ const Ticket = ({ ticket, column }) => {
       ) : (
         <p>{ticket.content}</p>
       )}
-      <DeleteButton onClick={() => deleteTicket(ticket.id)}>x</DeleteButton>
+      <DeleteButton
+        data-testid={`delete-button-${ticket.id}`}
+        onClick={() => deleteTicket(ticket.id)}
+      >
+        x
+      </DeleteButton>
     </TicketWrapper>
   )
 }

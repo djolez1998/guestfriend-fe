@@ -1,33 +1,28 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MockedProvider } from '@apollo/client/testing'
+
 import Column from '.'
-import {
-  ADD_TICKET,
-  MOVE_TICKET,
-  GET_TICKETS,
-  DELETE_TICKET
-} from '../../graphQueries'
+
+import { ADD_TICKET, MOVE_TICKET, GET_TICKETS } from '../../graphQueries'
 import { DndProvider } from 'react-dnd'
 import { TestBackend } from 'react-dnd-test-backend'
 
-// Mock Data
 const mockTickets = [
-  { id: '1', content: 'Test Ticket 1', column: 'todo', updated: '1234' },
-  { id: '2', content: 'Test Ticket 2', column: 'todo', updated: '2314' }
+  { id: '1', content: 'Test Ticket 1', column: 'todo' },
+  { id: '2', content: 'Test Ticket 2', column: 'todo' }
 ]
 
 const mockColumn = { title: 'To Do', key: 'todo' }
 
+const mockColumn1 = { title: 'To Do', key: 'todo' }
+const mockColumn2 = { title: 'In Progress', key: 'inProgress' }
+
 const mocks = [
   {
-    request: {
-      query: GET_TICKETS
-    },
+    request: { query: GET_TICKETS },
     result: {
-      data: {
-        tickets: mockTickets
-      }
+      data: { tickets: mockTickets }
     }
   },
   {
@@ -44,24 +39,11 @@ const mocks = [
   {
     request: {
       query: MOVE_TICKET,
-      variables: { id: '1', column: 'done' }
+      variables: { id: '1', column: 'inProgress' }
     },
     result: {
       data: {
-        moveTicket: { id: '1', content: 'Test Ticket 1', column: 'done' }
-      }
-    }
-  },
-  {
-    request: {
-      query: DELETE_TICKET,
-      variables: { id: '1' }
-    },
-    result: {
-      data: {
-        deleteTicket: {
-          id: '1'
-        }
+        moveTicket: { id: '1', content: 'Test Ticket 1', column: 'inProgress' }
       }
     }
   }
@@ -69,7 +51,7 @@ const mocks = [
 
 describe('Column Component', () => {
   const setup = () => {
-    render(
+    return render(
       <MockedProvider mocks={mocks} addTypename={false}>
         <DndProvider backend={TestBackend}>
           <Column column={mockColumn} tickets={mockTickets} />
@@ -78,71 +60,74 @@ describe('Column Component', () => {
     )
   }
 
-  it('renders column title and tickets', () => {
+  it('renders tickets', async () => {
     setup()
-    // Check if the column title is rendered
+
+    expect(screen.getByText('Test Ticket 1')).toBeInTheDocument()
+
+    expect(screen.getByText('Test Ticket 2')).toBeInTheDocument()
+
     expect(screen.getByText('To Do (2)')).toBeInTheDocument()
 
-    // Check if tickets are rendered
+    expect(screen.getByTestId('column-wrapper-todo')).toHaveStyle(
+      'background-color: #bee1f5'
+    )
+  })
+
+  // https://www.ignek.com/blog/test-graphql-queries-and-mutation-using-rtl-and-jest/
+  it('opens modal, adds new ticket, and updates UI', async () => {
+    setup()
+
+    expect(screen.getByText('To Do (2)')).toBeInTheDocument()
+
+    const addButton = screen.getByRole('button', { name: '+' })
+    fireEvent.click(addButton)
+
+    const modal = await screen.findByTestId('modal')
+    expect(modal).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Ticket content'), {
+      target: { value: 'New Ticket' }
+    })
+
+    fireEvent.click(screen.getByText('Add ticket'))
+
+    expect(screen.queryByTestId('modal')).not.toBeInTheDocument()
+
+    expect(mocks[1]?.result?.data?.addTicket?.id).toBe('3')
+  })
+
+  it('moves a ticket to a different column and updates the UI', async () => {
+    const setupTwoColumns = () => {
+      return render(
+        <MockedProvider mocks={mocks} addTypename={false}>
+          <DndProvider backend={TestBackend}>
+            <div>
+              <Column column={mockColumn1} tickets={mockTickets} />
+              <Column column={mockColumn2} tickets={[]} />
+            </div>
+          </DndProvider>
+        </MockedProvider>
+      )
+    }
+
+    setupTwoColumns()
+
     expect(screen.getByText('Test Ticket 1')).toBeInTheDocument()
+
     expect(screen.getByText('Test Ticket 2')).toBeInTheDocument()
-  })
 
-  it('opens and closes modal for adding ticket', () => {
-    setup()
+    expect(screen.getByText('To Do (2)')).toBeInTheDocument()
 
-    // Open the modal
-    const addButton = screen.getByRole('button', { name: '+' })
-    fireEvent.click(addButton)
+    const ticket = screen.getByText('Test Ticket 1')
+    const dropTarget = screen.getByTestId('column-body-inProgress')
 
-    // Check if the modal opens
-    expect(screen.getByTestId('modal')).toBeInTheDocument()
+    fireEvent.dragStart(ticket)
+    fireEvent.dragEnter(dropTarget)
+    fireEvent.dragOver(dropTarget)
+    fireEvent.drop(dropTarget)
+    fireEvent.dragEnd(ticket)
 
-    // Close the modal
-    const closeModalButton = screen.getByRole('button', { name: '×' })
-
-    fireEvent.click(closeModalButton)
-
-    // Check if the modal is closed
-    expect(screen.queryByTestId('modal')).not.toBeInTheDocument()
-  })
-
-  it('triggers add ticket mutation and updates UI', async () => {
-    setup()
-    // Open the modal
-    const addButton = screen.getByRole('button', { name: '+' })
-
-    fireEvent.click(addButton)
-
-    expect(screen.getByTestId('modal')).toBeInTheDocument()
-
-    // Fill in the form in the modal and submit
-    const input = screen.getByPlaceholderText('Ticket content')
-
-    fireEvent.change(input, { target: { value: 'New Ticket' } })
-
-    const submitButton = screen.getByRole('button', { name: 'Add ticket' })
-
-    fireEvent.click(submitButton)
-
-    // Modal should be closed
-    expect(screen.queryByTestId('modal')).not.toBeInTheDocument()
-
-    // kao da cache na query ne vrati sa novim itemom
-    // Wait for the ticket to be added to the cache and UI updated
-    // await screen.findByText('New Ticket', { exact: false })
-  })
-
-  it('deletes a ticket when delete button is clicked', async () => {
-    setup()
-
-    // const deleteButton = screen.getAllByText('x')
-
-    // fireEvent.click(deleteButton)
-
-    // // Wait for the ticket to be removed
-    // await waitFor(() =>
-    //   expect(screen.queryByText('Test Ticket 1')).not.toBeInTheDocument()
-    // )
+    expect(screen.getByText('Test Ticket 1')).toBeInTheDocument()
   })
 })

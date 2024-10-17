@@ -29,24 +29,27 @@ const Column = ({ column, tickets }) => {
   const [addTicketMutation] = useMutation(ADD_TICKET)
   const [moveTicketMutation] = useMutation(MOVE_TICKET)
 
-  const handleAddTicket = (content, column) => {
-    addTicketMutation({
-      variables: { content, column },
-      update(cache, { data: { addTicket } }) {
-        // If cache.readQuery returns null
-        const existingData = cache.readQuery({ query: GET_TICKETS })
-        const tickets = existingData ? existingData.tickets : []
-
-        cache.writeQuery({
-          query: GET_TICKETS,
-          data: { tickets: [...tickets, addTicket] }
-        })
-      }
-    })
+  const handleAddTicket = async (content, column) => {
+    try {
+      await addTicketMutation({
+        variables: { content, column },
+        update(cache, { data: { addTicket } }) {
+          const existingData = cache.readQuery({ query: GET_TICKETS })
+          if (existingData && existingData.tickets) {
+            cache.writeQuery({
+              query: GET_TICKETS,
+              data: { tickets: [...existingData.tickets, addTicket] }
+            })
+          }
+        }
+      })
+    } catch (error) {
+      console.error('Error adding ticket:', error)
+    }
   }
 
-  const moveTicket = (id, toColumn) => {
-    moveTicketMutation({
+  const moveTicket = async (id, toColumn) => {
+    await moveTicketMutation({
       variables: { id, column: toColumn },
       update(cache) {
         const { tickets } = cache.readQuery({ query: GET_TICKETS })
@@ -76,14 +79,18 @@ const Column = ({ column, tickets }) => {
   }))
 
   return (
-    <ColumnWrapper $column={columnKey} ref={drop}>
+    <ColumnWrapper
+      $column={columnKey}
+      ref={drop}
+      data-testid={`column-wrapper-${columnKey}`}
+    >
       <ColumnHeader $column={columnKey}>
         <ColumnTitle>{`${columnTitle} (${tickets.length})`}</ColumnTitle>
         <AddButton $column={columnKey} onClick={() => openModal(columnKey)}>
           +
         </AddButton>
       </ColumnHeader>
-      <ColumnBody>
+      <ColumnBody data-testid={`column-body-${columnKey}`}>
         {tickets.map((ticket) => (
           <Ticket key={ticket.id} ticket={ticket} column={columnKey} />
         ))}

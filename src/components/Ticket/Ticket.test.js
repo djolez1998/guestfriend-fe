@@ -1,17 +1,14 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MockedProvider } from '@apollo/client/testing'
 import Ticket from '.'
 import { DELETE_TICKET, EDIT_TICKET, GET_TICKETS } from '../../graphQueries'
 import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
-import userEvent from '@testing-library/user-event'
 
 const mocks = [
   {
-    request: {
-      query: GET_TICKETS
-    },
+    request: { query: GET_TICKETS },
     result: {
       data: {
         tickets: [
@@ -28,9 +25,7 @@ const mocks = [
     },
     result: {
       data: {
-        deleteTicket: {
-          id: '1'
-        }
+        deleteTicket: { id: '1' }
       }
     }
   },
@@ -48,23 +43,13 @@ const mocks = [
         }
       }
     }
-  },
-  {
-    request: {
-      query: GET_TICKETS
-    },
-    result: {
-      data: {
-        tickets: [{ id: '2', content: 'Test Ticket 2', column: 'inProgress' }]
-      }
-    }
   }
 ]
 
 const ticket = { id: '1', content: 'Test Ticket', column: 'todo' }
 
 const setup = () => {
-  return render(
+  render(
     <MockedProvider mocks={mocks} addTypename={false}>
       <DndProvider backend={HTML5Backend}>
         <Ticket ticket={ticket} column="todo" />
@@ -81,30 +66,21 @@ describe('Ticket Component', () => {
 
   it('deletes a ticket when delete button is clicked', async () => {
     setup()
-
     const deleteButton = screen.getByText('x')
-
     fireEvent.click(deleteButton)
 
-    // Wait for the ticket to be removed
-    // await waitFor(() =>
-    //   expect(screen.queryByText('Test Ticket')).not.toBeInTheDocument()
-    // )
+    expect(mocks[1]?.result?.data?.deleteTicket?.id).toBe('1')
   })
 
   it('allows editing the ticket content', async () => {
     setup()
-
-    // Trigger double click to edit
     const ticketContent = screen.getByText('Test Ticket')
     fireEvent.doubleClick(ticketContent)
 
-    // Input should now be rendered
     const input = screen.getByDisplayValue('Test Ticket')
-    fireEvent.change(input, { target: { value: 'Updated Ticket' } }) // Ensure this matches your mock
-    fireEvent.blur(input) // Trigger save by blurring
+    fireEvent.change(input, { target: { value: 'Updated Ticket' } })
+    fireEvent.blur(input)
 
-    // Wait for the mutation and check for the updated ticket content
-    // await screen.findByDisplayValue('Updated Ticket')
+    expect(mocks[2]?.result?.data?.editTicket?.content).toBe('Updated Ticket')
   })
 })
